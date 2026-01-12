@@ -2,153 +2,144 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 学生业务管理类：封装所有数据库操作
+ */
 public class StudentManager {
+    // 数据库连接对象
+    private DatabaseConnection dbConnection = new DatabaseConnection();
 
-    // 1. 添加学生信息到数据库
+    /**
+     * 添加学生信息
+     * @param student 学生对象
+     * @return 成功返回true，失败返回false
+     */
     public boolean addStudent(Student student) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        String sql = "INSERT INTO students(name, gender, class_name, math_score, java_score) VALUES (?, ?, ?, ?, ?)";
-
-        try {
-            conn = DatabaseConnection.getConnection();
-            pstmt = conn.prepareStatement(sql);
-            // 给SQL占位符赋值
-            pstmt.setString(1, student.getName());
-            pstmt.setString(2, student.getGender());
-            pstmt.setString(3, student.getClassName());
-            pstmt.setDouble(4, student.getMathScore());
-            pstmt.setDouble(5, student.getJavaScore());
-            // 执行插入，返回受影响行数
-            int rows = pstmt.executeUpdate();
-            return rows > 0; // 插入成功返回true
+        String sql = "INSERT INTO students(id, name, gender, class_name, math_score, java_score) VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, student.getId());
+            pstmt.setString(2, student.getName());
+            pstmt.setString(3, student.getGender());
+            pstmt.setString(4, student.getClassName());
+            pstmt.setDouble(5, student.getMathScore());
+            pstmt.setDouble(6, student.getJavaScore());
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
-        } finally {
-            DatabaseConnection.closeResources(pstmt, conn);
         }
     }
 
-    // 2. 根据ID查询学生信息
-    public Student getStudentById(int studentId) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        Student student = null;
-        String sql = "SELECT * FROM students WHERE student_id = ?";
-
-        try {
-            conn = DatabaseConnection.getConnection();
-            pstmt = conn.prepareStatement(sql);
+    /**
+     * 根据ID查询单个学生
+     * @param studentId 学生ID
+     * @return 找到返回Student对象，未找到返回null
+     */
+    public Student queryStudentById(int studentId) {
+        String sql = "SELECT * FROM students WHERE id = ?";
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, studentId);
-            rs = pstmt.executeQuery();
-            // 封装查询结果到Student对象
+            ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
-                student = new Student();
-                student.setStudentId(rs.getInt("student_id"));
-                student.setName(rs.getString("name"));
-                student.setGender(rs.getString("gender"));
-                student.setClassName(rs.getString("class_name"));
-                student.setMathScore(rs.getDouble("math_score"));
-                student.setJavaScore(rs.getDouble("java_score"));
+                return new Student(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("gender"),
+                        rs.getString("class_name"),
+                        rs.getDouble("math_score"),
+                        rs.getDouble("java_score")
+                );
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            DatabaseConnection.closeResources(rs, pstmt, conn);
         }
-        return student;
+        return null;
     }
 
-    // 3. 显示所有学生信息
-    public List<Student> getAllStudents() {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
+    /**
+     * 查询所有学生
+     * @return 学生列表
+     */
+    public List<Student> queryAllStudents() {
         List<Student> studentList = new ArrayList<>();
         String sql = "SELECT * FROM students";
-
-        try {
-            conn = DatabaseConnection.getConnection();
-            pstmt = conn.prepareStatement(sql);
-            rs = pstmt.executeQuery();
-            // 遍历结果集，封装成Student列表
+        try (Connection conn = dbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
-                Student student = new Student();
-                student.setStudentId(rs.getInt("student_id"));
-                student.setName(rs.getString("name"));
-                student.setGender(rs.getString("gender"));
-                student.setClassName(rs.getString("class_name"));
-                student.setMathScore(rs.getDouble("math_score"));
-                student.setJavaScore(rs.getDouble("java_score"));
+                Student student = new Student(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("gender"),
+                        rs.getString("class_name"),
+                        rs.getDouble("math_score"),
+                        rs.getDouble("java_score")
+                );
                 studentList.add(student);
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            DatabaseConnection.closeResources(rs, pstmt, conn);
         }
         return studentList;
     }
 
-    // 4. 计算学生各科目平均分
-    public void calculateAverageScore() {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        String sql = "SELECT AVG(math_score) AS math_avg, AVG(java_score) AS java_avg FROM students";
-
-        try {
-            conn = DatabaseConnection.getConnection();
-            pstmt = conn.prepareStatement(sql);
-            rs = pstmt.executeQuery();
-            if (rs.next()) {
-                double mathAvg = rs.getDouble("math_avg");
-                double javaAvg = rs.getDouble("java_avg");
-                System.out.println("高数科目平均分：" + String.format("%.1f", mathAvg));
-                System.out.println("Java科目平均分：" + String.format("%.1f", javaAvg));
-            }
+    /**
+     * 根据ID删除学生
+     * @param studentId 学生ID
+     * @return 成功返回true，失败返回false
+     */
+    public boolean deleteStudentById(int studentId) {
+        String sql = "DELETE FROM students WHERE id = ?";
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, studentId);
+            int affectedRows = pstmt.executeUpdate();
+            return affectedRows > 0;
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            DatabaseConnection.closeResources(rs, pstmt, conn);
+            return false;
         }
     }
 
-    // 测试方法（可直接运行）
-    public static void main(String[] args) {
-        StudentManager manager = new StudentManager();
-
-        // 测试添加学生
-        Student student = new Student();
-        student.setName("赵六");
-        student.setGender("男");
-        student.setClassName("2024级软件工程2班");
-        student.setMathScore(85.0);
-        student.setJavaScore(90.5);
-        boolean addSuccess = manager.addStudent(student);
-        System.out.println("添加学生是否成功：" + addSuccess);
-
-        // 测试查询所有学生
-        System.out.println("\n所有学生信息：");
-        List<Student> students = manager.getAllStudents();
-        for (Student s : students) {
-            System.out.println("ID：" + s.getStudentId() + "，姓名：" + s.getName() + "，班级：" + s.getClassName() + "，高数：" + s.getMathScore() + "，Java：" + s.getJavaScore());
+    /**
+     * 计算所有学生的高数平均分
+     * @return 高数平均分
+     */
+    public double calculateMathAvgScore() {
+        String sql = "SELECT AVG(math_score) AS avg_math FROM students";
+        try (Connection conn = dbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getDouble("avg_math");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
+        return 0.0;
+    }
 
-        // 测试按ID查询
-        System.out.println("\n查询ID=1的学生：");
-        Student s = manager.getStudentById(1);
-        if (s != null) {
-            System.out.println("姓名：" + s.getName() + "，性别：" + s.getGender());
+    /**
+     * 计算所有学生的Java平均分
+     * @return Java平均分
+     */
+    public double calculateJavaAvgScore() {
+        String sql = "SELECT AVG(java_score) AS avg_java FROM students";
+        try (Connection conn = dbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getDouble("avg_java");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-
-        // 测试计算平均分
-        System.out.println("\n各科目平均分：");
-        manager.calculateAverageScore();
+        return 0.0;
     }
 }

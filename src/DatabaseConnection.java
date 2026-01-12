@@ -15,7 +15,7 @@ public class DatabaseConnection {
     private static final String PASSWORD = "123456"; // 你的 MySQL 密码
 
     // 私有化构造方法，防止外部创建实例（单例模式）
-    private DatabaseConnection() {}
+    public DatabaseConnection() {}
 
     /**
      * 获取数据库连接
